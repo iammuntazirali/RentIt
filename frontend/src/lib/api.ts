@@ -31,6 +31,24 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   return res;
 }
+import { mockProperties } from "./mockData";
+
+// Helper function to filter mock data based on params
+function filterMockData(params?: { category?: string; city?: string;[key: string]: any }): Property[] {
+  let filtered = [...mockProperties];
+
+  if (params?.category) {
+    filtered = filtered.filter(p => p.type === params.category);
+  }
+
+  if (params?.city) {
+    filtered = filtered.filter(p =>
+      p.location.city.toLowerCase().includes(params.city!.toLowerCase())
+    );
+  }
+
+  return filtered;
+}
 
 export const api = {
   listings: {
@@ -39,63 +57,83 @@ export const api = {
       city?: string;
       [key: string]: any;
     }): Promise<Property[]> => {
-      const query = params
-        ? "?" + new URLSearchParams(params).toString()
-        : "";
+      try {
+        const query = params
+          ? "?" + new URLSearchParams(params).toString()
+          : "";
 
-      const res = await fetch(`${API_URL}/listings${query}`, {
-        cache: "no-store",
-      });
+        const res = await fetch(`${API_URL}/listings${query}`, {
+          cache: "no-store",
+        });
 
-      if (!res.ok) throw new Error("Failed to fetch listings");
-
-      const data = await res.json();
-
-
-      let listings: any[] = [];
-      if (data.listings && Array.isArray(data.listings)) {
-        listings = data.listings;
-      } else if (Array.isArray(data)) {
-        listings = data;
-      }
-
-      return listings.map((item: any) => ({
-        ...item,
-        images: item.images ? item.images.map((img: any) => img.url || img) : [],
-        price: item.price || {
-          amount: item.basePrice || 0,
-          period: item.priceUnit === 'month' ? 'month' : 'night'
-        },
-        location: item.location || {
-          city: item.city || 'Unknown',
-          area: item.area || 'Unknown',
-          state: item.state || 'Unknown',
-          pincode: item.pincode || ''
+        if (!res.ok) {
+          console.log("API failed, using mock data");
+          return filterMockData(params);
         }
-      }));
+
+        const data = await res.json();
+
+        let listings: any[] = [];
+        if (data.listings && Array.isArray(data.listings)) {
+          listings = data.listings;
+        } else if (Array.isArray(data)) {
+          listings = data;
+        }
+
+        // If no listings from API, fallback to mock
+        if (listings.length === 0) {
+          return filterMockData(params);
+        }
+
+        return listings.map((item: any) => ({
+          ...item,
+          images: item.images ? item.images.map((img: any) => img.url || img) : [],
+          price: item.price || {
+            amount: item.basePrice || 0,
+            period: item.priceUnit === 'month' ? 'month' : 'night'
+          },
+          location: item.location || {
+            city: item.city || 'Unknown',
+            area: item.area || 'Unknown',
+            state: item.state || 'Unknown',
+            pincode: item.pincode || ''
+          }
+        }));
+      } catch (error) {
+        console.log("API error, using mock data:", error);
+        return filterMockData(params);
+      }
     },
     getById: async (id: string): Promise<Property | undefined> => {
-      const res = await fetch(`${API_URL}/listings/${id}`, {
-        cache: "no-store",
-      });
+      try {
+        const res = await fetch(`${API_URL}/listings/${id}`, {
+          cache: "no-store",
+        });
 
-      if (!res.ok) throw new Error("Failed to fetch listing");
-
-      const item = await res.json();
-      return {
-        ...item,
-        images: item.images ? item.images.map((img: any) => img.url || img) : [],
-        price: item.price || {
-          amount: item.basePrice || 0,
-          period: item.priceUnit === 'month' ? 'month' : 'night'
-        },
-        location: item.location || {
-          city: item.city || 'Unknown',
-          area: item.area || 'Unknown',
-          state: item.state || 'Unknown',
-          pincode: item.pincode || ''
+        if (!res.ok) {
+          console.log("API failed for getById, using mock data");
+          return mockProperties.find(p => p.id === id);
         }
-      };
+
+        const item = await res.json();
+        return {
+          ...item,
+          images: item.images ? item.images.map((img: any) => img.url || img) : [],
+          price: item.price || {
+            amount: item.basePrice || 0,
+            period: item.priceUnit === 'month' ? 'month' : 'night'
+          },
+          location: item.location || {
+            city: item.city || 'Unknown',
+            area: item.area || 'Unknown',
+            state: item.state || 'Unknown',
+            pincode: item.pincode || ''
+          }
+        };
+      } catch (error) {
+        console.log("API error for getById, using mock data:", error);
+        return mockProperties.find(p => p.id === id);
+      }
     },
   },
   bookings: {
